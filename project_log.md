@@ -57,3 +57,19 @@
 * Chatbot FAQ tested: "library hours?" → correct rule-based answer returned
 * Socket.IO WS errors expected (backend not yet running simultaneously) — UI unaffected
 * **Outcome: ✅ PASS — Phase 1 Student Dashboard complete**
+
+---
+
+### [2026-02-25 15:05]
+
+**Task:** > UI Refinements — Replace icons with SVG, wider sidebar, zero border-radius, darker greyish-blue (#1C1F27), subtler hovers.
+
+**Changes Made:**
+* `client/src/index.css` — Updated design tokens: `--bg-secondary: #1C1F27`, `--bg-card: #252830`, all `--radius-*: 0px`, `--sidebar-width: 240px`, border colors changed to white-alpha. Hover states reduced to ~4% white overlay instead of full color shift
+* `client/src/components/layout/Sidebar.jsx` — Replaced all emoji icons with custom inline SVG line-art icons (dashboard, booking, scheduling, chatbot, live chat, my bookings, library logo)
+* `client/src/components/layout/Navbar.jsx` — Replaced bell emoji with SVG bell icon. Avatar/avatar button made square (border-radius: 0)
+* `client/src/pages/Dashboard.jsx` — Replaced emoji icons in feature card icon slots with blue SVG icons
+
+**Testing:**
+* Browser screenshot verified: all 4 feature cards visible and distinct, sidebar 240px with single-line labels, blue SVG icons render in all cards and sidebar, zero border-radius globally, Alex Morgan mock user shown correctly
+* **Outcome: ✅ PASS — All 5 UI changes applied successfully**
