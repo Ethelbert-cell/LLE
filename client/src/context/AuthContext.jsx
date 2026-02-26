@@ -1,36 +1,53 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import axios from "axios";
 
 const AuthContext = createContext(null);
-
-// Mock user for development (remove when real auth is connected)
-const MOCK_USER = {
-  _id: "mock-001",
-  name: "Alex Morgan",
-  studentId: "482910",
-  email: "alex.morgan@university.edu",
-  role: "student",
-  token: "mock-jwt-token",
-};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Try localStorage first, fall back to mock user for dev
-    try {
-      const stored = localStorage.getItem("lle_user");
-      if (stored) {
-        setUser(JSON.parse(stored));
-      } else {
-        // Development convenience: auto-login with mock user
-        setUser(MOCK_USER);
-        localStorage.setItem("lle_user", JSON.stringify(MOCK_USER));
+    const initAuth = async () => {
+      try {
+        // 1. Check localStorage for a previously saved real session
+        const stored = localStorage.getItem("lle_user");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Only restore if it has a real token (not the old mock token)
+          if (parsed?.token && parsed.token !== "mock-jwt-token") {
+            setUser(parsed);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // 2. Auto-login with the seeded student account to get a real JWT
+        //    (This keeps the dev experience seamless — replace with a login
+        //     page flow once the full auth UI is built)
+        const res = await axios.post("/api/auth/login", {
+          email: "alex.morgan@university.edu",
+          password: "student123",
+        });
+
+        const userData = res.data; // { _id, name, email, role, studentId, token }
+        setUser(userData);
+        localStorage.setItem("lle_user", JSON.stringify(userData));
+      } catch (err) {
+        console.warn("Auto-login failed:", err.message);
+        // Fallback: show a minimal user without a token
+        // The UI will still render; protected API calls will show auth errors
+        setUser({
+          name: "Student",
+          role: "student",
+          token: null,
+        });
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      setUser(MOCK_USER);
-    }
-    setLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   const login = (userData) => {

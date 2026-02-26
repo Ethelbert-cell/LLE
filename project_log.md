@@ -95,3 +95,42 @@
 * ✅ GET  http://localhost:5001/api/rooms  → 5 rooms returned from Atlas
 * ✅ POST http://localhost:5001/api/ai     → Groq replied: *"The library is open Monday to Thursday from 8am..."*
 * **Outcome: ✅ PASS — Full backend now live and connected**
+
+---
+
+### [2026-02-26 16:42]
+
+**Task:** > Chatbot giving wrong answers — "book a room" replied with borrowing books. Groq AI not being called at all.
+
+**Changes Made:**
+* `client/src/pages/ChatbotPage.jsx` — Complete rewrite:
+  - Two-pass FAQ matcher: phrase match first (exact), keyword match as fallback — prevents "book" in "How do I book a room?" from wrongly hitting the borrowing rule
+  - Added "What is LLE" FAQ entry explaining the Library Learning Environment
+  - Tier 2 AI now makes a real axios POST to /api/ai with JWT token and conversation history (multi-turn context). Removed the TODO stub.
+  - Added proper 401 error handling
+* `client/src/context/AuthContext.jsx` — Replaced hardcoded mock-jwt-token with real auto-login: calls /api/auth/login on startup to get a genuine JWT. Skips re-login if a valid token is already in localStorage.
+
+**Testing (browser verification):**
+* ✅ "How do I book a room?" → Study Room Booking instructions (correct)
+* ✅ "What is LLE?" → LLE definition from FAQ (correct)
+* ✅ "What is the capital of France?" → Groq AI: "I'm specialised in library topics..." (correct — library scope enforced)
+* ✅ No auth errors in console — real JWT obtained on startup
+* **Outcome: ✅ PASS — Chatbot fully functional**
+
+---
+
+### [2026-02-26 17:11]
+
+**Task:** > "tissue are made out of feathers" triggered Food & Drink policy. "best time to study in the day" triggered Library Hours. Both wrong.
+
+**Root Cause:** `String.includes()` substring matching — "eat" is a substring of "feathers"; "time" exists literally in "best time to study".
+
+**Changes Made:**
+* `client/src/pages/ChatbotPage.jsx` — Added `wordBoundaryMatch()` using `\bkeyword\b` regex — "eat" no longer matches inside "feathers", "time" no longer matches in "study time". All FAQ keywords replaced with specific multi-word phrases (no more single generic words like "eat", "time", "open", "talk", "study", "water"). Anything not matched by FAQ goes to Groq AI.
+
+**Testing:**
+* ✅ "do you think tissue are made out of feathers" → Groq AI (no false Food policy match)
+* ✅ "best time to study in the day is what" → Groq AI (no false Library Hours match)
+* ✅ "How do I book a room?" → Room Booking FAQ (still correct)
+* ✅ "What are the library hours?" → Library Hours FAQ (still correct)
+* **Outcome: ✅ PASS**
