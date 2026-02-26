@@ -1,69 +1,69 @@
 const express = require("express");
 const router = express.Router();
+const Groq = require("groq-sdk");
 const { protect } = require("../middleware/auth");
 
 /**
  * AI/NLP Route — Pillar 3, Tier 2
- * Proxies free-text queries to an AI provider (Gemini / OpenAI).
- * System instructions keep the AI focused on library topics only.
- *
- * Replace the fetch call below with your preferred AI SDK when you
- * have an API key. A clear placeholder is left so it is easy to swap.
+ * Uses Groq (llama3-8b-8192) with system instructions that keep the
+ * assistant focused strictly on library topics.
  */
 
-const SYSTEM_INSTRUCTIONS = `
-You are a helpful university library assistant named "LibBot".
-Your ONLY role is to answer questions about:
-- Library hours and location
-- Library policies (noise, food, devices)
-- Available resources (books, journals, databases)
-- How to book a room or schedule a librarian meeting
-- General study tips related to library use
+const SYSTEM_INSTRUCTIONS = `You are LibBot, a helpful and friendly AI assistant for a university library.
 
-If a question is completely unrelated to the library, politely redirect
-the student back to library topics. Keep responses concise and friendly.
-Never make up facts — if you don't know, say so and suggest the student
-contact a librarian directly.
-`;
+Your ONLY role is to answer questions strictly about:
+- Library opening hours and location
+- Library policies (noise levels, food/drink, device usage)
+- Available resources (books, journals, academic databases like JSTOR, Scopus, PubMed)
+- How to book a study room or schedule a librarian meeting via this app
+- General study tips related to library use
+- Book borrowing, returns, and renewals
+
+Response rules:
+- Keep answers concise and friendly (2–4 sentences max)
+- Use bullet points only when listing multiple items
+- If the question is completely unrelated to the library, politely redirect: "I'm specialised in library topics — for that question I'd suggest speaking to a librarian directly via Live Chat."
+- Never fabricate facts. If unsure, say: "I don't have that information — please contact a librarian via Live Chat for accurate details."
+- Do NOT answer questions about general topics like weather, politics, coding, etc.`;
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // @route  POST /api/ai
 // @access Protected
 router.post("/", protect, async (req, res) => {
   try {
-    const { message } = req.body;
-    if (!message)
+    const { message, history = [] } = req.body;
+    if (!message?.trim())
       return res.status(400).json({ message: "Message is required" });
 
-    const apiKey = process.env.AI_API_KEY;
+    // Build conversation context (last 6 messages max to stay within token limits)
+    const recentHistory = history.slice(-6).map((m) => ({
+      role: m.role, // 'user' or 'assistant'
+      content: m.content,
+    }));
 
-    // ─── PLACEHOLDER: Replace this block with your actual Gemini/OpenAI call ───
-    if (!apiKey || apiKey === "your_gemini_or_openai_key_here") {
-      return res.json({
-        reply:
-          "I'm LibBot! My AI brain isn't connected yet — please add an API key in the server .env file. " +
-          "For now, try asking me about library hours or booking a room using the quick buttons!",
-      });
-    }
+    const chatCompletion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: SYSTEM_INSTRUCTIONS },
+        ...recentHistory,
+        { role: "user", content: message },
+      ],
+      temperature: 0.5,
+      max_tokens: 512,
+    });
 
-    // ─── Example: Gemini REST call (uncomment & adjust when key is ready) ───
-    // const response = await fetch(
-    //   `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
-    //   {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({
-    //       system_instruction: { parts: [{ text: SYSTEM_INSTRUCTIONS }] },
-    //       contents: [{ parts: [{ text: message }] }],
-    //     }),
-    //   }
-    // );
-    // const data = await response.json();
-    // const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't process that.";
-    // return res.json({ reply });
+    const reply =
+      chatCompletion.choices?.[0]?.message?.content?.trim() ||
+      "I couldn't generate a response right now. Please try again or contact a librarian via Live Chat.";
 
-    res.json({ reply: "AI response placeholder" });
+    res.json({ reply });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Groq AI Error:", err.message);
+    res.status(500).json({
+      message:
+        "AI service error. Please try Live Chat to speak with a librarian directly.",
+    });
   }
 });
 

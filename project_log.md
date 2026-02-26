@@ -73,3 +73,25 @@
 **Testing:**
 * Browser screenshot verified: all 4 feature cards visible and distinct, sidebar 240px with single-line labels, blue SVG icons render in all cards and sidebar, zero border-radius globally, Alex Morgan mock user shown correctly
 * **Outcome: ✅ PASS — All 5 UI changes applied successfully**
+
+---
+
+### [2026-02-26 15:50]
+
+**Task:** > Connect backend to MongoDB Atlas and Groq AI API.
+
+**Changes Made:**
+* `server/.env` — Real MongoDB Atlas URI (with retryWrites+w=majority), Groq API key, PORT changed to 5001 (macOS AirPlay uses 5000)
+* `server/config/db.js` — Added `family: 4` (IPv4 force) to fix SSL alert 80 on macOS Node.js 20.x with Atlas
+* `server/models/User.js` — Fixed pre-save bcrypt hook for Mongoose 8.x async pattern (removed `next` param)
+* `server/routes/ai.js` — Full Groq integration (llama-3.3-70b-versatile), library-scoped system prompt, conversation history support
+* `server/seed.js` — Fixed to use `.save()` pattern for users; seeded 5 rooms + admin + student
+* `client/.env` — Updated API/Socket URLs to port 5001
+* `client/vite.config.js` — Updated dev proxy to port 5001
+
+**Testing (all API smoke tests passed):**
+* ✅ GET  http://localhost:5001/           → `LLE Library API is running 🚀`
+* ✅ POST http://localhost:5001/api/auth/login → JWT token returned
+* ✅ GET  http://localhost:5001/api/rooms  → 5 rooms returned from Atlas
+* ✅ POST http://localhost:5001/api/ai     → Groq replied: *"The library is open Monday to Thursday from 8am..."*
+* **Outcome: ✅ PASS — Full backend now live and connected**
