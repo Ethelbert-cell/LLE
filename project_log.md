@@ -134,3 +134,24 @@
 * ✅ "How do I book a room?" → Room Booking FAQ (still correct)
 * ✅ "What are the library hours?" → Library Hours FAQ (still correct)
 * **Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 13:22]
+
+**Task:** > Build Sign Up / Sign In pages for Student and Admin/Librarian with role toggle, then connect to protected routes.
+
+**Changes Made:**
+* `client/src/pages/AuthPage.jsx` [NEW] — Full auth page: Student/Librarian role toggle, Sign In/Sign Up tabs, eye toggle for password, admin access code field, real axios calls to /api/auth/login and /api/auth/register
+* `client/src/components/ProtectedRoute.jsx` [NEW] — Route guard: redirects unauthenticated users to /auth; wrong-role users to their correct home
+* `client/src/context/AuthContext.jsx` — Removed auto-login. Now restores session from localStorage only (real JWT). Users must sign in via AuthPage
+* `client/src/App.jsx` — Full role-based routing: /auth (public), student routes (requiredRole=student), /admin placeholder (requiredRole=admin)
+* `client/src/components/layout/Layout.jsx` — Accepts isAdmin prop for future admin sidebar
+* `server/routes/auth.js` — Fixed register route to use new User().save() for bcrypt pre-save hook compatibility
+
+**Testing:**
+* ✅ Unauthenticated visit to / → redirects to /auth
+* ✅ Auth page UI: logo, role toggle, tabs, eye icon, error box all render correctly
+* ✅ Sign Up (student) → creates account and redirects to /dashboard
+* ⚠️ Sign In blocked by dynamic Atlas IP whitelist change (user action needed — see below)
+* **Outcome: ✅ PASS for all auth UI — ⚠️ Atlas reconnect required**

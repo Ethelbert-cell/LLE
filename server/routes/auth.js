@@ -16,7 +16,9 @@ router.post("/register", async (req, res) => {
     if (userExists)
       return res.status(400).json({ message: "User already exists" });
 
-    const user = await User.create({ name, email, password, studentId, role });
+    // Use .save() so the pre-save bcrypt hook fires (Mongoose 8 + bcryptjs 3)
+    const user = new User({ name, email, password, studentId, role });
+    await user.save();
 
     res.status(201).json({
       _id: user._id,

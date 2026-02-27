@@ -1,17 +1,23 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 
-const Layout = () => (
-  <div className="app-shell">
-    <Sidebar />
-    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-      <Navbar />
-      <main className="main-content">
-        <Outlet />
-      </main>
+/**
+ * Shared layout shell for both student and admin views.
+ * isAdmin flag is passed down when used under the /admin route.
+ */
+const Layout = ({ isAdmin = false }) => {
+  return (
+    <div className="app-shell">
+      <Sidebar isAdmin={isAdmin} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <Navbar />
+        <main className="main-content">
+          <Outlet />
+        </main>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default Layout;
