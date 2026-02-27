@@ -155,3 +155,32 @@
 * ✅ Sign Up (student) → creates account and redirects to /dashboard
 * ⚠️ Sign In blocked by dynamic Atlas IP whitelist change (user action needed — see below)
 * **Outcome: ✅ PASS for all auth UI — ⚠️ Atlas reconnect required**
+
+---
+
+### [2026-02-27 13:55]
+
+**Task:** > Build Admin/Librarian Dashboard matching the provided mockup design, with the same dark UI.
+
+**Changes Made:**
+* `client/src/components/layout/AdminSidebar.jsx` [NEW] — Admin sidebar: Library ADMIN PANEL logo, admin user card, MAIN MENU label, 7 nav links with SVG icons, red Sign Out button
+* `client/src/components/layout/AdminNavbar.jsx` [NEW] — Admin navbar: "Library Support System | Admin Panel" title, bell icon, blue Logout button with arrow icon
+* `client/src/components/layout/AdminLayout.jsx` [NEW] — Admin layout shell wrapping AdminSidebar + AdminNavbar + Outlet
+* `client/src/pages/admin/AdminDashboard.jsx` [NEW] — Main dashboard: 4 stat cards (Total Bookings, Active Chats, Today's Appts, Registered Users) with zero-padded numbers + blue SVG icons, Recent Booking Activity table with status badges, Pending Requests panel with chevrons and footer
+* `client/src/pages/admin/AdminManageRooms.jsx` [NEW] — Add/activate/deactivate rooms
+* `client/src/pages/admin/AdminViewBookings.jsx` [NEW] — All bookings with filter tabs
+* `client/src/pages/admin/AdminManageSchedule.jsx` [NEW] — Meeting requests with approve/reject buttons
+* `client/src/pages/admin/AdminLiveChatSessions.jsx` [NEW] — Placeholder for real-time chat console
+* `client/src/pages/admin/AdminUserManagement.jsx` [NEW] — Searchable user table
+* `client/src/pages/admin/AdminSystemSettings.jsx` [NEW] — System config values
+* `server/routes/users.js` [NEW] — Admin-only /api/users route
+* `server/server.js` — Registered /api/users route
+* `client/src/App.jsx` — Updated with nested /admin/* routes all wrapped in ProtectedRoute(role=admin)
+
+**Testing:**
+* ✅ Sign up as Librarian (access code ADMIN2026) → redirects to /admin
+* ✅ Admin dashboard renders: sidebar, navbar (Logout button), 4 stat cards, Recent Booking Activity, Pending Requests, footer
+* ✅ All 7 sidebar nav links present with correct SVG icons
+* ✅ Pending Requests panel shows all 5 items with chevron arrows
+* ⚠️ Stats show dashes until Atlas is reconnected (mock fallback activates when API responds)
+* **Outcome: ✅ PASS**
