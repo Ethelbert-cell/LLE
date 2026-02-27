@@ -35,24 +35,25 @@ const fmt12 = (t) => {
   return `${hour % 12 || 12}:${m} ${hour < 12 ? "AM" : "PM"}`;
 };
 
-// Given a room's booked slots for a date, determine if it's currently taken
-// and when it will next be free (considering the selected startTime/endTime filter)
+// Given a room's booked slots for a date, determine availability based on selected time window.
+// Returns: { taken: bool, soft: bool, availableAt }
+//   taken  = hard block — slot overlaps selected start/end exactly
+//   soft   = informational — room has bookings on this date but no time selected yet
 const getRoomAvailability = (slots, selectedStart, selectedEnd) => {
-  if (!slots || slots.length === 0) return { taken: false };
+  if (!slots || slots.length === 0) return { taken: false, soft: false };
 
-  // Check if ANY confirmed/pending slot overlaps the selected window
-  // If no time selected yet, just check if there's any booking today
+  // If no time selected yet, show a soft indicator (room has bookings, but not blocked)
+  if (!selectedStart || !selectedEnd) {
+    return { taken: false, soft: true };
+  }
+
+  // Time selected — only block if there is an actual overlap
   for (const s of slots) {
-    const overlaps =
-      selectedStart && selectedEnd
-        ? s.startTime < selectedEnd && s.endTime > selectedStart
-        : true; // no time selected — show all booked slots as info
-
-    if (overlaps) {
-      return { taken: true, availableAt: s.endTime };
+    if (s.startTime < selectedEnd && s.endTime > selectedStart) {
+      return { taken: true, soft: false, availableAt: s.endTime };
     }
   }
-  return { taken: false };
+  return { taken: false, soft: false };
 };
 
 const BookingPage = () => {
@@ -64,6 +65,11 @@ const BookingPage = () => {
   const [roomsError, setRoomsError] = useState(null);
   // roomSlots: { [roomId]: [{startTime, endTime, status}] } for the selected date
   const [roomSlots, setRoomSlots] = useState({});
+  // System settings enforced on UI (maxAdvanceDays, maxBookingDuration)
+  const [settings, setSettings] = useState({
+    maxAdvanceDays: 7,
+    maxBookingDuration: 4,
+  });
 
   // ── My existing bookings (for student self-overlap check) ──────────────────
   const [myBookings, setMyBookings] = useState([]);
@@ -76,6 +82,12 @@ const BookingPage = () => {
         setRoomsError("Could not load rooms. Please try again later."),
       )
       .finally(() => setRoomsLoading(false));
+
+    // Fetch system settings (maxAdvanceDays, maxBookingDuration)
+    axios
+      .get("/api/settings")
+      .then((r) => setSettings(r.data))
+      .catch(() => {});
 
     if (user?.token) {
       axios
@@ -98,6 +110,13 @@ const BookingPage = () => {
     endTime: "",
     purpose: "",
   });
+
+  // Derive maxDate from live settings
+  const maxDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + (settings.maxAdvanceDays || 7));
+    return d.toISOString().split("T")[0];
+  }, [settings.maxAdvanceDays]);
 
   // Fetch booked slots whenever the selected date changes
   useEffect(() => {
@@ -132,6 +151,59 @@ const BookingPage = () => {
     );
   }, [form, myBookings]);
 
+  // ── Duration limit: endTime must not exceed startTime + maxBookingDuration hrs ─
+  const maxEndTime = useMemo(() => {
+    if (!form.startTime || !settings.maxBookingDuration) return "";
+    const [h, m] = form.startTime.split(":").map(Number);
+    const totalMins = h * 60 + m + settings.maxBookingDuration * 60;
+    const endH = Math.floor(totalMins / 60);
+    const endM = totalMins % 60;
+    return `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
+  }, [form.startTime, settings.maxBookingDuration]);
+
+  const durationExceeded = useMemo(() => {
+    if (!form.startTime || !form.endTime || !settings.maxBookingDuration)
+      return false;
+    const toMins = (t) => {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+    return (
+      toMins(form.endTime) - toMins(form.startTime) >
+      settings.maxBookingDuration * 60
+    );
+  }, [form.startTime, form.endTime, settings.maxBookingDuration]);
+
+  const alreadyBookedToday = useMemo(() => {
+    if (!form.date) return false;
+    return myBookings.some(
+      (b) =>
+        b.date === form.date && ["pending", "confirmed"].includes(b.status),
+    );
+  }, [form.date, myBookings]);
+
+  // ── Weekly limit: max 2 bookings per calendar week (Mon–Sun) ────────────────
+  const weeklyBookingCount = useMemo(() => {
+    if (!form.date) return 0;
+    const reqDate = new Date(form.date + "T12:00:00");
+    const dow = reqDate.getDay();
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    const weekStart = new Date(reqDate);
+    weekStart.setDate(reqDate.getDate() + mondayOffset);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    const wStart = weekStart.toISOString().split("T")[0];
+    const wEnd = weekEnd.toISOString().split("T")[0];
+    return myBookings.filter(
+      (b) =>
+        ["pending", "confirmed"].includes(b.status) &&
+        b.date >= wStart &&
+        b.date <= wEnd,
+    ).length;
+  }, [form.date, myBookings]);
+
+  const weeklyLimitHit = weeklyBookingCount >= 2;
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => {
@@ -143,6 +215,9 @@ const BookingPage = () => {
         next.endTime = "";
       return next;
     });
+    // Clear room slots IMMEDIATELY on date change so taken indicator
+    // never shows stale data from the previous date while the new fetch loads.
+    if (name === "date") setRoomSlots({});
   };
 
   const handleSubmit = async (e) => {
@@ -167,6 +242,11 @@ const BookingPage = () => {
       return showAlert(
         "alert-error",
         "You already have a booking that overlaps this time slot.",
+      );
+    if (durationExceeded)
+      return showAlert(
+        "alert-error",
+        `Maximum session is ${settings.maxBookingDuration} hour${settings.maxBookingDuration !== 1 ? "s" : ""}. Please shorten your booking.`,
       );
 
     setLoading(true);
@@ -248,26 +328,27 @@ const BookingPage = () => {
               form.startTime,
               form.endTime,
             );
-            const isTaken = avail.taken;
             const isSelected = selectedRoom?._id === room._id;
 
             return (
               <div
                 key={room._id}
                 className={`room-card${isSelected ? " selected" : ""}`}
-                onClick={() => !isTaken && setSelectedRoom(room)}
-                role={isTaken ? "presentation" : "button"}
-                tabIndex={isTaken ? -1 : 0}
+                onClick={() => !avail.taken && setSelectedRoom(room)}
+                role={avail.taken ? "presentation" : "button"}
+                tabIndex={avail.taken ? -1 : 0}
                 onKeyDown={(e) =>
-                  !isTaken && e.key === "Enter" && setSelectedRoom(room)
+                  !avail.taken && e.key === "Enter" && setSelectedRoom(room)
                 }
                 style={{
                   position: "relative",
-                  ...(isTaken ? { opacity: 0.6, cursor: "not-allowed" } : {}),
+                  ...(avail.taken
+                    ? { opacity: 0.6, cursor: "not-allowed" }
+                    : {}),
                 }}
               >
-                {/* Taken overlay */}
-                {isTaken && (
+                {/* Hard taken overlay — specific time slot conflict */}
+                {avail.taken && (
                   <div
                     style={{
                       position: "absolute",
@@ -299,9 +380,30 @@ const BookingPage = () => {
                           color: "var(--text-secondary)",
                         }}
                       >
-                        Available at {fmt12(avail.availableAt)}
+                        Free from {fmt12(avail.availableAt)}
                       </span>
                     )}
+                  </div>
+                )}
+
+                {/* Soft indicator — bookings exist but no time selected yet */}
+                {avail.soft && !avail.taken && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      zIndex: 2,
+                      background: "rgba(251,191,36,0.15)",
+                      border: "1px solid rgba(251,191,36,0.35)",
+                      borderRadius: 4,
+                      padding: "2px 7px",
+                      fontSize: "0.67rem",
+                      fontWeight: 600,
+                      color: "#fbbf24",
+                    }}
+                  >
+                    🕐 Partially Booked
                   </div>
                 )}
 
@@ -359,7 +461,8 @@ const BookingPage = () => {
                     marginLeft: "0.5rem",
                   }}
                 >
-                  (bookings from tomorrow onwards — up to 7 days ahead)
+                  (tomorrow onwards · max {settings.maxAdvanceDays || 7} days ·
+                  1/day · 2/week)
                 </span>
               </label>
               <input
@@ -368,11 +471,34 @@ const BookingPage = () => {
                 className="form-input"
                 value={form.date}
                 min={TOMORROW}
-                max={MAX_DATE}
+                max={maxDate}
                 onChange={handleChange}
                 required
               />
             </div>
+
+            {/* Daily limit warning */}
+            {alreadyBookedToday && (
+              <div
+                className="alert alert-error"
+                style={{ marginBottom: "0.75rem", fontSize: "0.8rem" }}
+              >
+                ⚠️ You already have a booking on <strong>{form.date}</strong>.
+                Only <strong>1 room per day</strong> is allowed.
+              </div>
+            )}
+
+            {/* Weekly limit warning */}
+            {weeklyLimitHit && (
+              <div
+                className="alert alert-error"
+                style={{ marginBottom: "0.75rem", fontSize: "0.8rem" }}
+              >
+                ⚠️ You have used <strong>{weeklyBookingCount}/2</strong>{" "}
+                bookings for this week. Weekly limit reached — cancel an
+                existing booking to proceed.
+              </div>
+            )}
 
             {/* Library hours hint */}
             <div
@@ -417,12 +543,33 @@ const BookingPage = () => {
                   className="form-input"
                   value={form.endTime}
                   min={form.startTime || hours.open}
-                  max={hours.close}
+                  max={
+                    maxEndTime
+                      ? maxEndTime < hours.close
+                        ? maxEndTime
+                        : hours.close
+                      : hours.close
+                  }
                   onChange={handleChange}
                   required
                 />
               </div>
             </div>
+
+            {/* Duration limit warning */}
+            {durationExceeded && (
+              <div
+                className="alert alert-error"
+                style={{ marginBottom: "0.75rem", fontSize: "0.8rem" }}
+              >
+                ⚠️ Maximum session duration is{" "}
+                <strong>
+                  {settings.maxBookingDuration} hour
+                  {settings.maxBookingDuration !== 1 ? "s" : ""}
+                </strong>
+                . Please shorten your booking window.
+              </div>
+            )}
 
             {/* Student self-overlap warning */}
             {selfOverlaps && (
@@ -462,7 +609,13 @@ const BookingPage = () => {
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={loading || selfOverlaps}
+                disabled={
+                  loading ||
+                  selfOverlaps ||
+                  alreadyBookedToday ||
+                  weeklyLimitHit ||
+                  durationExceeded
+                }
               >
                 {loading ? "⏳ Booking…" : "✅ Confirm Booking"}
               </button>

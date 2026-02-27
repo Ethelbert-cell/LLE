@@ -100,35 +100,6 @@ const StatusBadge = ({ status }) => {
   return <span className={`badge ${cls}`}>{label}</span>;
 };
 
-// ─── Pending Request Items (from mockup) ──────────────────────────────────────
-const PENDING = [
-  {
-    icon: "❓",
-    title: "Special Equipment Request",
-    sub: "Student ID: #29402 · VR Headset",
-  },
-  {
-    icon: "🗂",
-    title: "Archive Access Permit",
-    sub: "Faculty ID: #11092 · Rare Manuscripts",
-  },
-  {
-    icon: "🎓",
-    title: "Research Consultation",
-    sub: "Student ID: #33104 · Metadata Literacy",
-  },
-  {
-    icon: "📅",
-    title: "Large Room Reservation",
-    sub: "Org ID: #00231 · Student Union Board",
-  },
-  {
-    icon: "🔑",
-    title: "Account Recovery",
-    sub: "External ID: #E.9421 · Alumni Access",
-  },
-];
-
 // ─── Component ────────────────────────────────────────────────────────────────
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -139,6 +110,7 @@ const AdminDashboard = () => {
     users: 0,
   });
   const [recentBookings, setRecentBookings] = useState([]);
+  const [pendingMeetings, setPendingMeetings] = useState([]);
   const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
@@ -170,6 +142,18 @@ const AdminDashboard = () => {
           appointments: todayAppts,
           users: users.length,
         });
+
+        // Pending meeting requests (status = pending)
+        const pending = meetings
+          .filter((m) => m.status === "pending")
+          .slice(0, 6)
+          .map((m) => ({
+            id: m._id,
+            icon: "📋",
+            title: m.topic || "Meeting Request",
+            sub: `${m.student?.name || "Student"} → ${m.librarian?.name || "Librarian"} · ${m.requestedDate || ""}`,
+          }));
+        setPendingMeetings(pending);
 
         // Recent 5 bookings
         const recent = bookings
@@ -414,87 +398,109 @@ const AdminDashboard = () => {
           </table>
         </div>
 
-        {/* Pending Requests */}
+        {/* Pending Meeting Requests */}
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
           <div
             style={{
               padding: "1.25rem 1.5rem",
               borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
             <h2 className="card-title" style={{ margin: 0 }}>
               Pending Requests
             </h2>
+            <Link
+              to="/admin/schedule"
+              style={{
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                color: "var(--accent-blue)",
+                textDecoration: "none",
+              }}
+            >
+              VIEW ALL
+            </Link>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {PENDING.map((req, i) => (
-              <button
-                key={i}
+            {pendingMeetings.length === 0 ? (
+              <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "1rem",
-                  padding: "1rem 1.5rem",
-                  background: "none",
-                  border: "none",
-                  borderBottom:
-                    i < PENDING.length - 1 ? "1px solid var(--border)" : "none",
-                  cursor: "pointer",
-                  width: "100%",
-                  textAlign: "left",
-                  transition: "var(--transition)",
-                  fontFamily: "inherit",
+                  padding: "2rem",
+                  textAlign: "center",
+                  color: "var(--text-muted)",
+                  fontSize: "0.82rem",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(255,255,255,0.03)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "none")
-                }
               >
-                {/* Icon circle */}
+                No pending requests
+              </div>
+            ) : (
+              pendingMeetings.map((req, i) => (
                 <div
+                  key={req.id}
                   style={{
-                    width: 38,
-                    height: 38,
-                    flexShrink: 0,
-                    background: "var(--bg-secondary)",
-                    border: "1px solid var(--border)",
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1rem",
+                    gap: "1rem",
+                    padding: "0.9rem 1.5rem",
+                    borderBottom:
+                      i < pendingMeetings.length - 1
+                        ? "1px solid var(--border)"
+                        : "none",
                   }}
                 >
-                  {req.icon}
-                </div>
-                {/* Text */}
-                <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
                   <div
                     style={{
-                      fontSize: "0.85rem",
-                      fontWeight: 600,
-                      color: "var(--text-primary)",
-                      marginBottom: "0.2rem",
+                      width: 38,
+                      height: 38,
+                      flexShrink: 0,
+                      background: "rgba(59,130,246,0.1)",
+                      border: "1px solid rgba(59,130,246,0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "1rem",
                     }}
                   >
-                    {req.title}
+                    {req.icon}
                   </div>
-                  <div
-                    style={{
-                      fontSize: "0.73rem",
-                      color: "var(--text-secondary)",
-                    }}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: "0.84rem",
+                        fontWeight: 600,
+                        color: "var(--text-primary)",
+                        marginBottom: "0.15rem",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {req.title}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.72rem",
+                        color: "var(--text-secondary)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {req.sub}
+                    </div>
+                  </div>
+                  <span
+                    className="badge badge-pending"
+                    style={{ flexShrink: 0 }}
                   >
-                    {req.sub}
-                  </div>
+                    Pending
+                  </span>
                 </div>
-                {/* Chevron */}
-                <span style={{ color: "var(--text-secondary)", flexShrink: 0 }}>
-                  <ChevronRight />
-                </span>
-              </button>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

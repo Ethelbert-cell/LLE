@@ -115,9 +115,28 @@ const AdminUserManagement = () => {
                   </td>
                   <td>
                     <span
-                      className={`badge ${u.role === "admin" ? "badge-confirmed" : "badge-approved"}`}
+                      className={`badge ${
+                        u.role === "admin"
+                          ? "badge-confirmed"
+                          : u.role === "librarian"
+                            ? "badge-pending"
+                            : "badge-approved"
+                      }`}
+                      style={
+                        u.role === "librarian"
+                          ? {
+                              background: "rgba(168,85,247,0.12)",
+                              color: "#c084fc",
+                              borderColor: "rgba(192,132,252,0.3)",
+                            }
+                          : {}
+                      }
                     >
-                      {u.role === "admin" ? "Librarian" : "Student"}
+                      {u.role === "admin"
+                        ? "Admin"
+                        : u.role === "librarian"
+                          ? "Librarian"
+                          : "Student"}
                     </span>
                   </td>
                   <td

@@ -129,10 +129,9 @@ const AuthPage = () => {
       const res = await axios.post(endpoint, payload);
       login(res.data);
 
-      // Redirect by role
-      navigate(res.data.role === "admin" ? "/admin" : "/dashboard", {
-        replace: true,
-      });
+      // Redirect by role — both admin and librarian go to /admin
+      const isStaff = ["admin", "librarian"].includes(res.data.role);
+      navigate(isStaff ? "/admin" : "/dashboard", { replace: true });
     } catch (err) {
       setError(
         err?.response?.data?.message ||

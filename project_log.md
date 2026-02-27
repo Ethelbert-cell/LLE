@@ -244,3 +244,180 @@
 * Ongoing bookings highlighted in green with "Ends in Xm" countdown
 * Room taken overlay appears when date is selected and the room has a conflict
 * **Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 20:52]
+
+**Task:** > Implementing and improving the Librarian Scheduling System (4 areas)
+**Changes Made:**
+* `server/models/User.js` — Added `librarian` to role enum; added `isAvailable` boolean toggle; added `workingHours` subdocument (mon–sun each with enabled, open, close fields); added `specialty` string
+* `server/models/SystemSettings.js` — **NEW** singleton model: `maxBookingDuration`, `maxAdvanceDays`, `libraryName`, `supportEmail`, `librarianCode`
+* `server/models/Meeting.js` — Added `librarian` ref field, renamed `date→requestedDate`, `time→preferredTime`, added `cancelled` status, added compound index for double-booking prevention
+* `server/routes/meetings.js` — Full rewrite: 6-layer POST validation (advance days, librarian exists+available, working day, within hours, librarian double-booking, student self-overlap); GET /my populates librarian; PUT for admin approve/reject with librarianNote; DELETE soft-cancels
+* `server/routes/users.js` — Added: GET /librarians (public, available only), GET /librarians/all (admin), PATCH /librarians/:id/availability, PUT /librarians/:id/hours
+* `server/routes/settings.js` — **NEW**: GET (public), PUT (admin) for system settings singleton
+* `server/server.js` — Registered `/api/settings` route
+* `server/seed.js` — Added 3 librarians (Sarah Collins Mon–Sat, James Okafor Mon–Fri, Amara Nwosu Tue–Fri), SystemSettings seeding; passwords: `librarian123`
+* `client/src/pages/SchedulingPage.jsx` — Full rewrite: librarian picker (fetched live, shows specialty + working days), date picker (only working days allowed), 1-hour time slot grid (from librarian hours, booked slots excluded), live meeting history panel with cancel
+* `client/src/pages/admin/AdminManageSchedule.jsx` — Full rewrite: 2-tab layout — Meeting Requests (Student/Librarian/Topic/Date/Time/Status/Actions with inline note input) + Librarian Availability (per-librarian cards with isAvailable toggle + editable working hours + Save)
+* `client/src/pages/admin/AdminSystemSettings.jsx` — Full rewrite: fetches live settings, inline Edit/Save per field, enforces maxBookingDuration and maxAdvanceDays on both frontend and backend
+* `client/src/pages/BookingPage.jsx` — Added settings state fetch from GET /api/settings; `maxDate` now derived from `settings.maxAdvanceDays` instead of hardcoded 7
+
+**Testing:**
+* Run `node seed.js` in /server to populate 3 librarians + SystemSettings
+* Student scheduling: selects librarian → date picker shows only working days → time slots filtered to available hours → submit creates real meeting
+* Admin manage schedule: approve/reject with optional note → student sees status update in MyBookings
+* Admin system settings: Edit → change maxAdvanceDays → student date picker max updates immediately
+* **Outcome: ✅ All logic implemented and connected**
+
+---
+
+### [2026-02-27 21:14]
+
+**Task:** > Librarian accounts show blank screen when logging in
+**Changes Made:**
+* `client/src/components/ProtectedRoute.jsx` — Complete rewrite: added `ADMIN_ROLES = ["admin","librarian"]` constant; `homeFor()` maps both to `/admin`; `requiredRole="admin"` now accepts any staff role; removed duplicate code from earlier bad replace
+* `client/src/pages/AuthPage.jsx` — Fixed post-login redirect: replaced `role === "admin"` check with `["admin","librarian"].includes(role)` so librarians land at `/admin`
+* `server/middleware/auth.js` — Fixed `adminOnly` middleware to accept both `admin` and `librarian` roles, otherwise librarians would get 403 on every admin API call
+
+**Testing:** Librarian signs in → lands on admin dashboard → can access Meeting Requests, Availability settings, system settings
+**Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 21:28]
+
+**Task:** > Improve librarian availability/role management and fix user management role display
+**Changes Made:**
+* `client/src/pages/admin/AdminUserManagement.jsx` — Fixed role badge: replaced binary admin/student ternary with 3-way check — `admin` = blue "Admin", `librarian` = purple "Librarian", `student` = green "Student". Librarians no longer appear as "Student".
+* `client/src/pages/admin/AdminSystemSettings.jsx` — Full rewrite: added 2-tab layout. Tab 1: System Configuration (existing maxBookingDuration, maxAdvanceDays, etc. with inline Edit/Save). Tab 2: Librarian Availability & Hours — fetches all librarians via `GET /api/users/librarians/all`; per-librarian card with: (a) slider-style toggle that calls `PATCH /api/users/librarians/:id/availability` to immediately show/hide the librarian from the student scheduling page, (b) editable per-day working hours (checkbox to enable/disable each day + open/close time inputs) that calls `PUT /api/users/librarians/:id/hours` to save. All changes are backend-persisted and immediately reflected on the student Scheduling page.
+
+**Testing:**
+* User Management: librarians now show purple "Librarian" badge, admins show blue "Admin", students show green "Student"
+* System Settings → Librarian tab: toggle a librarian OFF → immediately hidden from GET /api/users/librarians (student page) but still visible in admin's "all" list
+* Change working hours → student scheduling time slots update immediately on next request
+**Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 21:46]
+
+**Task:** > Correct librarian availability RBAC — librarians must only edit their own settings
+**Changes Made:**
+* `server/routes/users.js` — Added `selfOrAdmin` middleware: allows request if caller is admin (any), or librarian whose `_id` matches the `:id` param. Otherwise returns 403 "you can only modify your own settings". Applied to `PATCH /librarians/:id/availability` and `PUT /librarians/:id/hours`. Also updated `GET /librarians/all`: admins get all librarians, librarians get only their own record.
+* `client/src/pages/admin/AdminSystemSettings.jsx` — Added `isAdmin`, `isLibrarian`, `effectiveTab` variables. Librarians: page title = "My Availability & Schedule", no tab switcher shown, always shown the availability tab with their own card only. Admins: full page with both tabs. Info banner text adapts per role.
+
+**Testing:**
+* Librarian logs in → sees only their own card, title is "My Availability & Schedule", no System Configuration tab
+* Librarian tries to PATCH another librarian's availability via curl → gets 403 "you can only modify your own settings"
+* Admin logs in → sees all librarians' cards and full system configuration tab
+**Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 21:55]
+
+**Task:** > System Settings page stuck loading indefinitely for librarian accounts
+**Root Cause:** `isLibrarian`/`isAdmin` were declared inside the `return()` block (lines ~416–419 of render) but `useEffect` runs before render — so: (a) `tab` initialized to `"system"` for everyone, (b) `fetchLibrarians` useEffect condition `tab === "librarians"` was always `false` for librarians, (c) `loadingL` stayed `true` forever causing infinite spinner. Additionally `isLibrarian` and `isAdmin` were declared twice causing lint errors.
+**Changes Made:**
+* `client/src/pages/admin/AdminSystemSettings.jsx` — Moved `isLibrarian` and `isAdmin` declarations to top of component body (before any state). Removed duplicate declarations from render section. Changed `useState("system")` to `useState(() => isLibrarian ? "librarians" : "system")` so librarians initialize on the correct tab. Changed `loadingS` initial value to `!isLibrarian` (librarians skip the system settings fetch entirely). Changed `useEffect` condition from `tab === "librarians"` to `tab === "librarians" || isLibrarian` so fetch fires on mount for librarians. All `effectiveTab` refs replaced with `tab` (now redundant since `tab` is initialized correctly).
+
+**Testing:** James Okafor or Sarah Collins logs in → immediately sees "My Availability & Schedule" with their own card fully loaded (no spinner)
+**Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 22:18]
+
+**Task:** > Fix 4 issues: specialty text, hardcoded pending requests, 500 on bookings, Unknown User/Room
+**Root Causes Found:**
+* 500 errors on `/api/bookings` and `/api/bookings/my`: 3 stale Booking documents in MongoDB referenced old Room ObjectIds from before the last `node seed.js` run. When Mongoose tried to populate `room`, the refs were broken, causing downstream errors.
+* Unknown User/Unknown Room: same stale booking issue — `populate('room', 'name')` returns `null` for non-existent Room refs.
+* Specialty text: `lib.specialty` was explicitly rendered in SchedulingPage librarian cards and LibrarianCard subtitle in AdminSystemSettings.
+* Pending Requests: hardcoded `PENDING` constant array (5 fake items) was rendered directly instead of using real meeting data.
+
+**Changes Made:**
+* **Database**: Ran inline Node script to delete 3 stale Bookings with broken Room refs (`deletedCount: 3`)
+* `client/src/pages/SchedulingPage.jsx` — Removed `lib.specialty` from librarian picker card and `m.librarian?.specialty` from meeting history panel; cleaned up trailing ` · ` separator
+* `client/src/pages/admin/AdminSystemSettings.jsx` — Removed `lib.specialty || "Librarian"` from LibrarianCard subtitle; now shows only `lib.email`
+* `client/src/pages/admin/AdminDashboard.jsx` — Deleted `PENDING` constant; added `pendingMeetings` state populated from `meetings.filter(m => m.status === "pending")`; Pending Requests panel now shows real data (topic, student→librarian name, date) with badge + "VIEW ALL" link to Manage Schedule; empty state shown when no pending requests
+
+**Testing:**
+* POST /api/bookings — no longer 500s (stale room refs cleared)
+* GET /api/bookings/my — responds correctly with empty array or valid bookings
+* Admin Dashboard Pending Requests — shows "No pending requests" or real meeting topics
+* Scheduling page — librarian cards show only name + working days, no specialty text
+**Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 22:59]
+
+**Task:** > Fix multi-room booking restriction, 403 on SchedulingPage, librarian seeing other librarians' meetings, and one-meeting-per-day rule
+**Changes Made:**
+* `server/routes/meetings.js` (full rewrite):
+  - NEW: `GET /api/meetings/slots?librarianId&date` — public route, returns array of taken time strings for a specific librarian+date; used by SchedulingPage without auth
+  - `GET /api/meetings` — changed from adminOnly to staff-scoped: admin gets all, librarian gets only their own (`filter = { librarian: _id }`)
+  - `POST /api/meetings` — rule 6 upgraded from same-time slot check to **same-day** check: student cannot book any meeting on a day they already have a pending/approved meeting (regardless of librarian or time)
+  - `PUT /api/meetings/:id` — RBAC: librarian can only approve/reject meetings where `meeting.librarian === req.user._id`; admin can update any
+  - `DELETE /api/meetings/:id` — RBAC: librarian can only cancel their own assigned meetings
+  - Removed `specialty` from all `populate()` calls
+* `server/routes/bookings.js` — added active-booking check (step 4): before creating a booking, checks if student already has a `pending/confirmed` booking for a future date; if yes → 409 "You already have an active booking"
+* `client/src/pages/SchedulingPage.jsx` — replaced `GET /api/meetings` (admin-only → 403) with `GET /api/meetings/slots?librarianId=X&date=Y` (public). Logic simplified from 17-line filter chain to single `.then(r => setBookedSlots(r.data))`
+
+**Testing:**
+* Student selects date on SchedulingPage → no 403 in console, booked slots loaded correctly
+* Student with active booking tries to book another room → gets 409 "You already have an active booking"
+* Student with meeting on a day tries to book another meeting that day → 409 "one meeting per day"
+* James Okafor logs in → GET /api/meetings returns only his own meetings
+* James tries to approve/reject Sarah's meeting → 403 "You can only approve or reject meetings assigned to you"
+**Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 23:29]
+
+**Task:** > Fix room taken indicator disappearing on date change + enforce 1/day and 2/week booking limits
+**Root Cause (availability display bug):** `handleChange` cleared `form.startTime` on date select, but `setRoomSlots({})` was NOT called synchronously — the async `GET /api/bookings/slots?date=NEW_DATE` hadn't resolved yet, so the old date's slot data still sat in `roomSlots`, causing rooms to transiently show as taken/available from the wrong day.
+**Changes Made:**
+* `server/routes/bookings.js` — Replaced the old "1 active booking ever" rule with two precise server-side rules:
+  - Rule 4: Same-day check — `Booking.findOne({ student, date, status pending/confirmed })` → 409 "Only one room booking per day is allowed"
+  - Rule 5: Weekly cap — Computes Monday–Sunday range of the requested date, uses `countDocuments` with `date $gte weekStart $lte weekEnd` → 409 "maximum of 2 room bookings per week" if count ≥ 2
+* `client/src/pages/BookingPage.jsx` — 4 changes:
+  - `handleChange`: added `if (name === "date") setRoomSlots({})` synchronous clear so rooms reset instantly on date change before new slots load
+  - Added `alreadyBookedToday` useMemo: scans `myBookings` for any pending/confirmed entry on the selected date
+  - Added `weeklyBookingCount` + `weeklyLimitHit` useMemo: computes Mon–Sun range matching backend logic, counts active bookings in that range
+  - Inline warning banners appear in the booking form when either limit is hit; submit button disabled when `alreadyBookedToday || weeklyLimitHit || selfOverlaps`
+  - Label hint updated to show "1/day · 2/week" policy
+  - `max={maxDate}` now dynamic from settings (replaces static `MAX_DATE`)
+
+**Testing:**
+* Change date → room taken indicators clear immediately, then reflect new date's bookings after fetch
+* Book room on Mon, try to book again on Mon → frontend warning + backend 409
+* Book 2 rooms Mon+Tue in same week, try Wed → frontend warning + backend 409
+**Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 23:38]
+
+**Task:** > Fix room unavailability tied to date+time (not global), add max booking duration per session
+**Changes Made:**
+* `client/src/pages/BookingPage.jsx`:
+  - `getRoomAvailability`: rewritten to return `{ taken, soft, availableAt }`. When no times selected → `{ taken: false, soft: true }` (room has bookings but not blocked). When both times selected → only returns `taken: true` on an actual overlap. Room grid now renders two distinct overlays: hard 🔒 "Taken" overlay (only on conflict) and a soft amber "🕐 Partially Booked" badge (when room has bookings on selected date but no conflict with selected time).
+  - Removed `isTaken` intermediate variable — `avail.taken` and `avail.soft` used directly.
+  - `maxEndTime` useMemo: computes `startTime + maxBookingDuration hours` as a string, capped to `hours.close`. Applied as `max` on the end time `<input>` so the browser itself limits the picker.
+  - `durationExceeded` useMemo: compares selected window minutes to `settings.maxBookingDuration * 60`.
+  - Inline red alert "⚠️ Maximum session duration is X hours" shown when exceeded.
+  - Submit button disabled when `durationExceeded` (in addition to existing conditions).
+  - `handleSubmit`: early return with error if `durationExceeded`.
+* `server/routes/bookings.js`:
+  - Rule 3b (new): After ordering check, loads `SystemSettings.findById("global")`, computes `sessionMins = toMins(endTime) - toMins(startTime)`, rejects `> maxBookingDuration * 60` with 400 "Maximum booking duration is X hours per session".
+
+**Testing:**
+* Select date with existing 9–11am bookings → rooms show amber "Partially Booked" badge, still clickable
+* Select 9:00–10:00 start/end → only the actually conflicting room goes hard 🔒 Taken
+* Set start 09:00, max duration 2h → end-time picker's max is 11:00 (browser enforces)
+* Try end time 13:00 with max 2h → warning shown, button disabled, backend also rejects
+**Outcome: ✅ PASS**

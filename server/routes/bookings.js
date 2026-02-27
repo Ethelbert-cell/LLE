@@ -174,14 +174,67 @@ router.post("/", protect, async (req, res) => {
         .json({ message: "End time must be after start time." });
     }
 
-    // 4. Room collision (prevent double-booking the same room)
+    // 3b. Max session duration (from SystemSettings, default 4 hrs)
+    const SystemSettings = require("../models/SystemSettings");
+    const settings = (await SystemSettings.findById("global")) || {
+      maxBookingDuration: 4,
+    };
+    const toMins = (t) => {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+    const sessionMins = toMins(endTime) - toMins(startTime);
+    const maxMins = (settings.maxBookingDuration || 4) * 60;
+    if (sessionMins > maxMins) {
+      return res.status(400).json({
+        message: `Maximum booking duration is ${settings.maxBookingDuration} hour${settings.maxBookingDuration !== 1 ? "s" : ""} per session.`,
+      });
+    }
+
+    // 4. Max 1 booking per day — student cannot book two rooms on the same date
+    const sameDay = await Booking.findOne({
+      student: req.user._id,
+      date,
+      status: { $in: ["pending", "confirmed"] },
+    });
+    if (sameDay) {
+      return res.status(409).json({
+        message:
+          "You already have a booking on this day. Only one room booking per day is allowed.",
+      });
+    }
+
+    // 5. Max 2 bookings per calendar week (Mon–Sun)
+    //    Find the Monday and Sunday of the requested date's week
+    const reqDate = new Date(date + "T12:00:00");
+    const dow = reqDate.getDay(); // 0=Sun, 1=Mon...
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    const weekStart = new Date(reqDate);
+    weekStart.setDate(reqDate.getDate() + mondayOffset);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    const weekStartStr = weekStart.toISOString().split("T")[0];
+    const weekEndStr = weekEnd.toISOString().split("T")[0];
+
+    const weeklyCount = await Booking.countDocuments({
+      student: req.user._id,
+      status: { $in: ["pending", "confirmed"] },
+      date: { $gte: weekStartStr, $lte: weekEndStr },
+    });
+    if (weeklyCount >= 2) {
+      return res.status(409).json({
+        message:
+          "You have reached the maximum of 2 room bookings per week. Please cancel an existing booking first.",
+      });
+    }
+
     if (await roomHasCollision(room, date, startTime, endTime)) {
       return res
         .status(409)
         .json({ message: "This room is already booked for that time slot." });
     }
 
-    // 5. Student self-overlap (prevent same student booking two rooms at once)
+    // 6. Student self-overlap (prevent same student booking two rooms at once)
     if (await studentHasOverlap(req.user._id, date, startTime, endTime)) {
       return res.status(409).json({
         message: "You already have a booking that overlaps this time slot.",
