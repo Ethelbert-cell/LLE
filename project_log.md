@@ -206,3 +206,41 @@
 * `npm run dev` → http://localhost:5173 (student)
 * `npm run admin` → http://localhost:5174 (admin) — separate localStorage, separate sessions
 * **Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 15:03]
+
+**Task:** > Fix same-day booking, enforce library hours, improve admin View All Bookings, and prevent double booking.
+
+**Changes Made:**
+* `client/src/pages/BookingPage.jsx` — Min date = tomorrow (no same-day), max = +7 days. Library hours enforced per day: Mon–Fri 8AM–10PM, Sat 9AM–6PM, Sun 12PM–6PM. Hours hint shown inline. End time `min` = start time (auto-prevents invalid range). Real-time self-overlap detection against student's own bookings (warns + disables submit). All rules also enforced server-side as double protection.
+* `client/src/pages/admin/AdminViewBookings.jsx` — Full rewrite: Student, Room, Date, Start, End, Status, Actions columns. Admin Confirm/Set Pending/Cancel buttons per row (disabled when completed/cancelled). Auto-detects completed (past end time) client-side without extra API call. Hover row expands purpose text. Filter tabs with live counts. Refresh button.
+* `server/models/Booking.js` — Added `"completed"` to status enum.
+* `server/routes/bookings.js` — Full rewrite with 5-layer POST validation: (1) no same-day, (2) library hours, (3) end>start, (4) room collision, (5) student self-overlap. New `PATCH /:id/status` endpoint for admin status updates. `GET /` auto-marks expired bookings as `completed` in bulk before responding.
+
+**Testing:**
+* Server enforces all 5 rules with appropriate 400/409 responses
+* Client warns in real-time about self-overlaps before submission
+* Admin can Confirm/Pending/Cancel any active booking
+* Expired bookings auto-complete on admin dashboard load
+* Hover row shows purpose field
+* **Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 15:37]
+
+**Task:** > Fix My Bookings page (hardcoded), add session countdown, and show room taken/available-at overlays.
+
+**Changes Made:**
+* `client/src/pages/MyBookingsPage.jsx` — Full rewrite: fetches real data from GET /api/bookings/my and GET /api/meetings/my. Live 10-second clock drives effectiveStatus() (ongoing/confirmed/pending/completed). SessionBanner shows "Your booking starts in Xm" for any booking within 30 minutes, and "🟢 Ongoing Session" during active time. Booking table has new Countdown column with live timer (h/m/s). Rows auto-sort: ongoing → upcoming → completed → cancelled. Cancel calls DELETE /api/bookings/:id for real.
+* `server/routes/bookings.js` — Added GET /api/bookings/slots?date= public endpoint returning { [roomId]: [{startTime, endTime, status}] } grouped by room for a given date.
+* `client/src/pages/BookingPage.jsx` — Added roomSlots state + useEffect fetch on date change. Room cards now have availability overlay: when a confirmed/pending booking overlaps the selected time slot, the card shows a blurred "🔒 [Room] is Taken / Available at X:XX PM" overlay and is non-clickable.
+
+**Testing:**
+* MyBookings shows real booking data, real status, live countdowns
+* SessionBanner fires within 30 minutes of any booking start time
+* Ongoing bookings highlighted in green with "Ends in Xm" countdown
+* Room taken overlay appears when date is selected and the room has a conflict
+* **Outcome: ✅ PASS**
