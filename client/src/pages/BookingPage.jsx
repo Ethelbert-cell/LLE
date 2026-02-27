@@ -1,46 +1,35 @@
 import { useState, useEffect } from "react";
+import axios from "axios";
 import { useAuth } from "../context/AuthContext";
-
-// Mock rooms data for UI development (replace with API call)
-const MOCK_ROOMS = [
-  {
-    _id: "room-1",
-    name: "Study Room A",
-    location: "Floor 2 — East Wing",
-    capacity: 6,
-    amenities: ["Whiteboard", "Projector", "Power Outlets"],
-    description: "Ideal for group study sessions.",
-  },
-  {
-    _id: "room-2",
-    name: "Quiet Pod 1",
-    location: "Floor 1 — Silent Zone",
-    capacity: 2,
-    amenities: ["Power Outlets", "Soundproofed"],
-    description: "Perfect for focused individual work.",
-  },
-  {
-    _id: "room-3",
-    name: "Collaboration Suite",
-    location: "Floor 3 — North",
-    capacity: 12,
-    amenities: ["Whiteboard", "Smart TV", "Conference Phone", "Power Outlets"],
-    description: "Large space for team projects.",
-  },
-  {
-    _id: "room-4",
-    name: "Reading Room B",
-    location: "Floor 1 — West Wing",
-    capacity: 4,
-    amenities: ["Natural Lighting", "Power Outlets"],
-    description: "Comfortable reading and research space.",
-  },
-];
 
 const TODAY = new Date().toISOString().split("T")[0];
 
+const MAX_DATE = (() => {
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  return d.toISOString().split("T")[0];
+})();
+
 const BookingPage = () => {
   const { user } = useAuth();
+
+  // ── Rooms ──────────────────────────────────────────────────────────────────
+  const [rooms, setRooms] = useState([]);
+  const [roomsLoading, setRoomsLoading] = useState(true);
+  const [roomsError, setRoomsError] = useState(null);
+
+  useEffect(() => {
+    // GET /api/rooms — public endpoint, returns only active rooms
+    axios
+      .get("/api/rooms")
+      .then((res) => setRooms(res.data))
+      .catch(() =>
+        setRoomsError("Could not load rooms. Please try again later."),
+      )
+      .finally(() => setRoomsLoading(false));
+  }, []);
+
+  // ── Booking form ───────────────────────────────────────────────────────────
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [form, setForm] = useState({
     date: TODAY,
@@ -56,7 +45,7 @@ const BookingPage = () => {
 
   const showAlert = (type, msg) => {
     setAlert({ type, msg });
-    setTimeout(() => setAlert(null), 4000);
+    setTimeout(() => setAlert(null), 5000);
   };
 
   const handleSubmit = async (e) => {
@@ -69,15 +58,44 @@ const BookingPage = () => {
       return showAlert("alert-error", "End time must be after start time.");
 
     setLoading(true);
-    // TODO: replace with API call: POST /api/bookings
-    await new Promise((r) => setTimeout(r, 900));
-    showAlert(
-      "alert-success",
-      `✅ Room "${selectedRoom.name}" booked for ${form.date} from ${form.startTime} to ${form.endTime}.`,
-    );
-    setSelectedRoom(null);
-    setForm({ date: TODAY, startTime: "", endTime: "", purpose: "" });
-    setLoading(false);
+    try {
+      await axios.post(
+        "/api/bookings",
+        {
+          room: selectedRoom._id,
+          date: form.date, // "YYYY-MM-DD"
+          startTime: form.startTime, // "HH:MM"
+          endTime: form.endTime, // "HH:MM"
+          purpose: form.purpose,
+        },
+        { headers: { Authorization: `Bearer ${user?.token}` } },
+      );
+
+      showAlert(
+        "alert-success",
+        `✅ "${selectedRoom.name}" booked for ${form.date} from ${form.startTime} to ${form.endTime}.`,
+      );
+      setSelectedRoom(null);
+      setForm({ date: TODAY, startTime: "", endTime: "", purpose: "" });
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message || "Booking failed. Please try again.";
+      // Handle double-booking gracefully
+      if (
+        msg.toLowerCase().includes("conflict") ||
+        msg.toLowerCase().includes("overlap") ||
+        msg.toLowerCase().includes("already")
+      ) {
+        showAlert(
+          "alert-error",
+          `⛔ That time slot is already booked. Please choose a different time.`,
+        );
+      } else {
+        showAlert("alert-error", msg);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -91,7 +109,7 @@ const BookingPage = () => {
 
       {alert && <div className={`alert ${alert.type}`}>{alert.msg}</div>}
 
-      {/* Room Selection */}
+      {/* ── Available Rooms ──────────────────────────────────────────────── */}
       <h2
         style={{
           fontSize: "0.85rem",
@@ -102,39 +120,69 @@ const BookingPage = () => {
           letterSpacing: "0.06em",
         }}
       >
-        Available Rooms
+        Available Rooms{" "}
+        {!roomsLoading && rooms.length > 0 && (
+          <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
+            ({rooms.length})
+          </span>
+        )}
       </h2>
-      <div className="rooms-grid">
-        {MOCK_ROOMS.map((room) => (
-          <div
-            key={room._id}
-            className={`room-card${selectedRoom?._id === room._id ? " selected" : ""}`}
-            onClick={() => setSelectedRoom(room)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && setSelectedRoom(room)}
-          >
-            <div className="room-card-header">
-              <div>
-                <div className="room-card-name">{room.name}</div>
-                <div className="room-card-location">📍 {room.location}</div>
+
+      {roomsLoading && <div className="spinner" />}
+
+      {roomsError && <div className="alert alert-error">{roomsError}</div>}
+
+      {!roomsLoading && !roomsError && rooms.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-state-icon">🚪</div>
+          <div className="empty-state-text">
+            No study rooms available right now. Please check back later.
+          </div>
+        </div>
+      )}
+
+      {!roomsLoading && rooms.length > 0 && (
+        <div className="rooms-grid">
+          {rooms.map((room) => (
+            <div
+              key={room._id}
+              className={`room-card${selectedRoom?._id === room._id ? " selected" : ""}`}
+              onClick={() => setSelectedRoom(room)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && setSelectedRoom(room)}
+            >
+              <div className="room-card-header">
+                <div>
+                  <div className="room-card-name">{room.name}</div>
+                  <div className="room-card-location">📍 {room.location}</div>
+                </div>
+                <div className="room-capacity-badge">👥 {room.capacity}</div>
               </div>
-              <div className="room-capacity-badge">👥 {room.capacity}</div>
-            </div>
-            <div className="amenities">
+              {room.description && (
+                <p
+                  style={{
+                    fontSize: "0.78rem",
+                    color: "var(--text-secondary)",
+                    margin: "0.4rem 0 0.5rem",
+                  }}
+                >
+                  {room.description}
+                </p>
+              )}
               <div className="room-amenities">
-                {room.amenities.map((a) => (
+                {(room.amenities || []).map((a) => (
                   <span key={a} className="amenity-tag">
                     {a}
                   </span>
                 ))}
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {/* Booking Form */}
+      {/* ── Booking Form ────────────────────────────────────────────────── */}
       {selectedRoom && (
         <div className="card" style={{ maxWidth: 520, animationDelay: "0.1s" }}>
           <div className="card-title">
@@ -152,6 +200,7 @@ const BookingPage = () => {
                 className="form-input"
                 value={form.date}
                 min={TODAY}
+                max={MAX_DATE}
                 onChange={handleChange}
                 required
               />
@@ -187,7 +236,18 @@ const BookingPage = () => {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Purpose (optional)</label>
+              <label className="form-label">
+                Purpose{" "}
+                <span
+                  style={{
+                    color: "var(--text-muted)",
+                    fontWeight: 400,
+                    fontSize: "0.72rem",
+                  }}
+                >
+                  (optional)
+                </span>
+              </label>
               <textarea
                 name="purpose"
                 className="form-textarea"

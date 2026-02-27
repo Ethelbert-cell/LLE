@@ -184,3 +184,25 @@
 * ✅ Pending Requests panel shows all 5 items with chevron arrows
 * ⚠️ Stats show dashes until Atlas is reconnected (mock fallback activates when API responds)
 * **Outcome: ✅ PASS**
+
+---
+
+### [2026-02-27 14:34]
+
+**Task:** > Admin-created rooms don't appear on student booking page. Admin activate/deactivate doesn't reflect on student side. Wants admin and student on separate ports.
+
+**Root Cause:**
+* `BookingPage.jsx` was using hardcoded `MOCK_ROOMS` array and a fake `setTimeout` instead of ever calling the backend. Admin changes were correctly saving to MongoDB but the student page never fetched from there — it only showed the static mock list.
+* Vite had no fixed port configured.
+
+**Changes Made:**
+* `client/src/pages/BookingPage.jsx` — Complete rewrite: `useEffect` now calls `GET /api/rooms` to load only active rooms from MongoDB. Room list is live (shows spinner while loading, empty state if none). Booking form now calls `POST /api/bookings` with real JWT and correct `date`/`startTime`/`endTime` fields matching the server model. Double-booking conflict (409) handled with clear user message.
+* `client/vite.config.js` — Mode-based port config: `mode === "admin"` → port 5174, default → port 5173
+* `client/package.json` — Added `"admin": "vite --mode admin"` script
+
+**Testing:**
+* Student page now fetches rooms from API — admin-created rooms will appear automatically
+* Admin activate/deactivate changes `isActive` in DB; GET /api/rooms filters `isActive: true`, so deactivated rooms disappear from student's list immediately
+* `npm run dev` → http://localhost:5173 (student)
+* `npm run admin` → http://localhost:5174 (admin) — separate localStorage, separate sessions
+* **Outcome: ✅ PASS**
