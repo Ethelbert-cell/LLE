@@ -8,7 +8,11 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
     senderName: { type: String, required: true },
-    senderRole: { type: String, enum: ["student", "admin"], required: true },
+    senderRole: {
+      type: String,
+      enum: ["student", "admin", "librarian"],
+      required: true,
+    },
     content: { type: String, required: true },
     roomId: { type: String, required: true }, // Socket.IO room ID for conversation
     read: { type: Boolean, default: false },

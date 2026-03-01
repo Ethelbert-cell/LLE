@@ -56,6 +56,41 @@ io.on("connection", (socket) => {
   });
 });
 
+// ── Background Cron tasks ──
+const ChatSession = require("./models/ChatSession");
+
+setInterval(async () => {
+  try {
+    const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+    // Find sessions that timed out
+    const expiredSessions = await ChatSession.find({
+      status: "Ongoing",
+      $or: [
+        { lastActivity: { $lt: fiveMinsAgo } },
+        { startTime: { $lt: thirtyMinsAgo } },
+      ],
+    });
+
+    for (const session of expiredSessions) {
+      session.status = session.librarianId ? "Completed" : "Missed";
+      session.endTime = new Date();
+      await session.save();
+
+      // Notify via socket
+      io.to(session.roomId).emit("session_ended", {
+        reason: "timeout",
+        message:
+          "This chat session has automatically ended due to time limits or inactivity.",
+      });
+      console.log(`⏳ Auto-closed chat session ${session._id}`);
+    }
+  } catch (err) {
+    console.error("Cron Error capturing expired sessions:", err);
+  }
+}, 60000); // Check every minute
+
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);

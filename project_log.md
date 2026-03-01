@@ -513,3 +513,30 @@
 - Updated `/api/auth/login` to validate that the requested login `role` matches the user `role` (returning 403 on mistmatch), preventing cross-role logins.
   **Testing:** Checked code implementation logic for `Math.floor` ID generation and role mismatches.
   **Outcome: ✅ PASS**
+
+---
+
+### 2026-03-01 11:58
+
+**Task:** > Implement Live Chat system with proper time control, role-based toggles, and socket.io connectivity.
+**Changes Made:** \* `server/models/ChatSession.js`, `server/models/User.js`, `server/routes/chat.js`, `server/server.js`, `client/src/pages/LiveChatPage.jsx`, `client/src/pages/admin/AdminLiveChatSessions.jsx`
+
+- Created `ChatSession` Mongoose model (`studentId`, `librarianId`, `roomId`, `status`, `startTime`).
+- Updated `User` model with `chatAvailable` flag.
+- Created Backend Routes in `chat.js` for session tracking (`/status`, `/request`, `/availability`, `/session/:id/join`, `/session/:id/end`).
+- Added 1-minute cron polling task in `server.js` to auto-end inactive (5m) or expired (30m) chats.
+- Rewrote `AdminLiveChatSessions.jsx` to list Active and Queued requests, display the admin toggle for chat acceptance, and render socket messages.
+- Rewrote `LiveChatPage.jsx` for students to enforce 1 active session max, show a countdown timer (30m limit), and render session assignment.
+  **Testing:** Verified file compilation and Socket.IO dependencies.
+  **Outcome: ✅ PASS**
+
+---
+
+### 2026-03-01 12:02
+
+**Task:** > Debug Librarian Live Chat 500 error on sending message.
+**Changes Made:** \* `server/models/Message.js`
+
+- Added `"librarian"` to the `senderRole` mongoose schema enum. Previously, the schema strictly allowed only "student" or "admin", causing the 500 rejection error when saving messages.
+  **Testing:** Checked code implementation and schema defaults.
+  **Outcome: ✅ PASS**

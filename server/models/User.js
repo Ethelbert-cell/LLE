@@ -28,6 +28,9 @@ const userSchema = new mongoose.Schema(
     // isAvailable: master toggle — if false, hidden from student booking page
     isAvailable: { type: Boolean, default: true },
 
+    // chatAvailable: toggle for Live Chat presence
+    chatAvailable: { type: Boolean, default: false },
+
     // workingHours: which days + hours the librarian accepts meetings
     workingHours: {
       mon: {
