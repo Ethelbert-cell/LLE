@@ -16,6 +16,7 @@ const settingsSchema = new mongoose.Schema(
     libraryName: { type: String, default: "University Central Library" },
     supportEmail: { type: String, default: "library@university.edu" },
     librarianCode: { type: String, default: "ADMIN2026" },
+    studentCode: { type: String, default: "STUDENT2026" },
   },
   { timestamps: true },
 );

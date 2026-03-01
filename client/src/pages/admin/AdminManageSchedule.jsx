@@ -185,12 +185,6 @@ const AdminManageSchedule = () => {
           📋 Meeting Requests (
           {meetings.filter((m) => m.status === "pending").length} pending)
         </button>
-        <button
-          className={`btn ${tab === "availability" ? "btn-primary" : "btn-secondary"}`}
-          onClick={() => setTab("availability")}
-        >
-          🕐 Librarian Availability
-        </button>
       </div>
 
       {/* ══ Meetings Tab ══════════════════════════════════════════════════════ */}

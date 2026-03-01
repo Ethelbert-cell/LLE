@@ -72,7 +72,7 @@ const AuthPage = () => {
     name: "",
     email: "",
     password: "",
-    studentId: "",
+    studentCode: "",
     adminCode: "",
   });
 
@@ -88,7 +88,7 @@ const AuthPage = () => {
       name: "",
       email: "",
       password: "",
-      studentId: "",
+      studentCode: "",
       adminCode: "",
     });
   };
@@ -106,8 +106,10 @@ const AuthPage = () => {
       return setError("Email and password are required.");
     if (mode === "signup" && !form.name.trim())
       return setError("Full name is required.");
-    if (mode === "signup" && role === "admin" && form.adminCode !== "ADMIN2026")
-      return setError("Invalid Librarian access code.");
+    if (mode === "signup" && role === "admin" && !form.adminCode)
+      return setError("Librarian access code is required.");
+    if (mode === "signup" && role === "student" && !form.studentCode)
+      return setError("Student access code is required.");
 
     setLoading(true);
     try {
@@ -115,15 +117,14 @@ const AuthPage = () => {
         mode === "signin" ? "/api/auth/login" : "/api/auth/register";
       const payload =
         mode === "signin"
-          ? { email: form.email, password: form.password }
+          ? { email: form.email, password: form.password, role }
           : {
               name: form.name,
               email: form.email,
               password: form.password,
               role,
-              ...(role === "student" && form.studentId
-                ? { studentId: form.studentId }
-                : {}),
+              accessCode:
+                role === "student" ? form.studentCode : form.adminCode,
             };
 
       const res = await axios.post(endpoint, payload);
@@ -361,22 +362,16 @@ const AuthPage = () => {
               />
             </div>
 
-            {/* Student ID (student sign up only) */}
+            {/* Student Code (student sign up only) */}
             {mode === "signup" && role === "student" && (
               <div>
-                <label className="form-label">
-                  Student ID{" "}
-                  <span
-                    style={{ color: "var(--text-muted)", fontSize: "0.73rem" }}
-                  >
-                    (optional)
-                  </span>
-                </label>
+                <label className="form-label">Student Access Code</label>
                 <input
                   className="form-input"
-                  placeholder="e.g. 482910"
-                  value={form.studentId}
-                  onChange={set("studentId")}
+                  type="password"
+                  placeholder="Enter student access code"
+                  value={form.studentCode}
+                  onChange={set("studentCode")}
                 />
               </div>
             )}

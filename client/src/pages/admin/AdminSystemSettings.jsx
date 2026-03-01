@@ -49,6 +49,12 @@ const SYSTEM_FIELDS = [
     type: "text",
     hint: "Required when registering as a librarian or admin.",
   },
+  {
+    key: "studentCode",
+    label: "Student Access Code",
+    type: "text",
+    hint: "Required when registering as a student.",
+  },
 ];
 
 // ─── Sub-component: Librarian Card ───────────────────────────────────────────
