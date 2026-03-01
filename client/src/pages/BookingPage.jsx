@@ -265,6 +265,16 @@ const BookingPage = () => {
 
       // Add new booking to local list so self-overlap check updates immediately
       setMyBookings((prev) => [...prev, res.data]);
+
+      // Re-fetch room slots for the booked date so ALL rooms on that date
+      // immediately show the "Partially Booked" indicator without needing
+      // a manual date change to trigger the useEffect.
+      const bookedDate = form.date;
+      axios
+        .get(`/api/bookings/slots?date=${bookedDate}`)
+        .then((r) => setRoomSlots(r.data))
+        .catch(() => {});
+
       showAlert(
         "alert-success",
         `✅ "${selectedRoom.name}" booked for ${form.date} from ${form.startTime} to ${form.endTime}.`,
@@ -386,24 +396,27 @@ const BookingPage = () => {
                   </div>
                 )}
 
-                {/* Soft indicator — bookings exist but no time selected yet */}
+                {/* Soft indicator — room has bookings on this date but no time-slot conflict yet */}
                 {avail.soft && !avail.taken && (
                   <div
                     style={{
-                      position: "absolute",
-                      top: 8,
-                      right: 8,
-                      zIndex: 2,
-                      background: "rgba(251,191,36,0.15)",
-                      border: "1px solid rgba(251,191,36,0.35)",
-                      borderRadius: 4,
-                      padding: "2px 7px",
-                      fontSize: "0.67rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      margin: "0.6rem 0 0",
+                      padding: "0.35rem 0.7rem",
+                      background: "rgba(251,191,36,0.1)",
+                      border: "1px solid rgba(251,191,36,0.3)",
+                      borderRadius: 6,
+                      fontSize: "0.72rem",
                       fontWeight: 600,
-                      color: "#fbbf24",
+                      color: "#f59e0b",
                     }}
                   >
-                    🕐 Partially Booked
+                    <span>🕐</span>
+                    <span>
+                      Partially booked — select a time to check availability
+                    </span>
                   </div>
                 )}
 
@@ -480,23 +493,91 @@ const BookingPage = () => {
             {/* Daily limit warning */}
             {alreadyBookedToday && (
               <div
-                className="alert alert-error"
-                style={{ marginBottom: "0.75rem", fontSize: "0.8rem" }}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "0.75rem",
+                  padding: "0.85rem 1rem",
+                  marginBottom: "1rem",
+                  background: "rgba(239,68,68,0.08)",
+                  border: "1px solid rgba(239,68,68,0.3)",
+                  borderRadius: 8,
+                }}
               >
-                ⚠️ You already have a booking on <strong>{form.date}</strong>.
-                Only <strong>1 room per day</strong> is allowed.
+                <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>🚫</span>
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: "0.82rem",
+                      color: "#f87171",
+                      marginBottom: "0.2rem",
+                    }}
+                  >
+                    Daily limit reached
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.76rem",
+                      color: "var(--text-secondary)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    You already have a booking on{" "}
+                    <strong style={{ color: "var(--text-primary)" }}>
+                      {form.date}
+                    </strong>
+                    . Only{" "}
+                    <strong style={{ color: "var(--text-primary)" }}>
+                      1 room per day
+                    </strong>{" "}
+                    is allowed — choose a different date.
+                  </div>
+                </div>
               </div>
             )}
 
             {/* Weekly limit warning */}
             {weeklyLimitHit && (
               <div
-                className="alert alert-error"
-                style={{ marginBottom: "0.75rem", fontSize: "0.8rem" }}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "0.75rem",
+                  padding: "0.85rem 1rem",
+                  marginBottom: "1rem",
+                  background: "rgba(239,68,68,0.08)",
+                  border: "1px solid rgba(239,68,68,0.3)",
+                  borderRadius: 8,
+                }}
               >
-                ⚠️ You have used <strong>{weeklyBookingCount}/2</strong>{" "}
-                bookings for this week. Weekly limit reached — cancel an
-                existing booking to proceed.
+                <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>📅</span>
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: "0.82rem",
+                      color: "#f87171",
+                      marginBottom: "0.2rem",
+                    }}
+                  >
+                    Weekly limit reached ({weeklyBookingCount}/2)
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.76rem",
+                      color: "var(--text-secondary)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    You have used all{" "}
+                    <strong style={{ color: "var(--text-primary)" }}>
+                      2 bookings
+                    </strong>{" "}
+                    for this week. Cancel an existing booking to make room for a
+                    new one.
+                  </div>
+                </div>
               </div>
             )}
 

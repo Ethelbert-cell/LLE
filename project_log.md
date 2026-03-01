@@ -421,3 +421,26 @@
 * Set start 09:00, max duration 2h → end-time picker's max is 11:00 (browser enforces)
 * Try end time 13:00 with max 2h → warning shown, button disabled, backend also rejects
 **Outcome: ✅ PASS**
+
+---
+
+### [2026-03-01 10:25]
+
+**Task:** > Partially Booked indicator only shows on first room; warning message missing spaces and bad styling
+**Root Causes:**
+* `roomSlots` was only refreshed via `useEffect([form.date])` — after a successful booking, `form.date` resets to TOMORROW (same value), so useEffect never re-fired, leaving roomSlots stale for the just-booked date
+* "Partially Booked" badge used `position: absolute, top:8, right:8` — placed directly over the capacity badge
+* Daily/weekly warning JSX had line breaks between `</strong>` and the next word, which React renders without spaces
+
+**Changes Made:**
+* `client/src/pages/BookingPage.jsx`:
+  - `handleSubmit` success block: added explicit `GET /api/bookings/slots?date=${bookedDate}` re-fetch immediately after booking saves; sets `roomSlots` so ALL rooms on that date update their soft indicator in real-time for the current student and correctly reflect for any student viewing the page
+  - Soft "Partially Booked" indicator: removed `position: absolute` overlay — now an inline flex strip (margin-top, full width) below amenities, no longer colliding with capacity badge. Text updated to "🕐 Partially booked — select a time to check availability"
+  - Daily limit warning: replaced `alert-error` div with polished card panel (🚫 icon, bold "Daily limit reached" title, descriptive sub-text with properly spaced template literal, rounded border)
+  - Weekly limit warning: same polish (📅 icon, "Weekly limit reached (X/2)" title, descriptive sub-text)
+
+**Testing:**
+* Book room on date X → immediately all booked rooms on date X show amber partial-booked strip
+* Pick same date in booking form → "Daily limit reached" banner appears with proper spacing and formatting
+* 2 bookings in same week → "Weekly limit reached (2/2)" banner appears clean
+**Outcome: ✅ PASS**
