@@ -3,6 +3,7 @@ const router = express.Router();
 const Meeting = require("../models/Meeting");
 const User = require("../models/User");
 const SystemSettings = require("../models/SystemSettings");
+const Notification = require("../models/Notification");
 const { protect, adminOnly } = require("../middleware/auth");
 
 // ─── Day-of-week key from "YYYY-MM-DD" ────────────────────────────────────────
@@ -98,18 +99,14 @@ router.post("/", protect, async (req, res) => {
     const maxDateStr = maxDate.toISOString().split("T")[0];
 
     if (requestedDate <= today) {
-      return res
-        .status(400)
-        .json({
-          message: "Meetings must be scheduled at least one day in advance.",
-        });
+      return res.status(400).json({
+        message: "Meetings must be scheduled at least one day in advance.",
+      });
     }
     if (requestedDate > maxDateStr) {
-      return res
-        .status(400)
-        .json({
-          message: `You can only book up to ${settings.maxAdvanceDays} days in advance.`,
-        });
+      return res.status(400).json({
+        message: `You can only book up to ${settings.maxAdvanceDays} days in advance.`,
+      });
     }
 
     // 2. Load the librarian and check availability
@@ -213,11 +210,9 @@ router.put("/:id", protect, async (req, res) => {
     const { status, librarianNote } = req.body;
     const allowed = ["pending", "approved", "rejected", "cancelled"];
     if (!allowed.includes(status)) {
-      return res
-        .status(400)
-        .json({
-          message: `Invalid status. Must be one of: ${allowed.join(", ")}`,
-        });
+      return res.status(400).json({
+        message: `Invalid status. Must be one of: ${allowed.join(", ")}`,
+      });
     }
 
     const updated = await Meeting.findByIdAndUpdate(
@@ -227,6 +222,17 @@ router.put("/:id", protect, async (req, res) => {
     )
       .populate("student", "name email studentId")
       .populate("librarian", "name email");
+
+    // Notify student of the decision
+    if (status === "approved" || status === "rejected") {
+      const emoji = status === "approved" ? "✅" : "❌";
+      await Notification.create({
+        userId: updated.student._id,
+        title: `Meeting ${status === "approved" ? "Accepted" : "Rejected"}`,
+        message: `${emoji} Your meeting request with ${updated.librarian.name} on ${updated.requestedDate} at ${updated.preferredTime} has been ${status}.${librarianNote ? " Note: " + librarianNote : ""}`,
+        type: "meeting",
+      });
+    }
 
     res.json(updated);
   } catch (err) {

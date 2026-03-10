@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Booking = require("../models/Booking");
+const Notification = require("../models/Notification");
 const { protect, adminOnly } = require("../middleware/auth");
 
 // ─── Library Opening Hours ────────────────────────────────────────────────────
@@ -252,6 +253,15 @@ router.post("/", protect, async (req, res) => {
     await booking.save();
 
     const populated = await booking.populate("room", "name location capacity");
+
+    // Notify student of successful booking
+    await Notification.create({
+      userId: req.user._id,
+      title: "Room Booking Confirmed",
+      message: `📅 Your room "${populated.room.name}" has been booked for ${date} from ${startTime} to ${endTime}.`,
+      type: "booking",
+    });
+
     res.status(201).json(populated);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -280,6 +290,18 @@ router.patch("/:id/status", protect, adminOnly, async (req, res) => {
       .populate("room", "name location");
 
     if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    // Notify student if admin confirms or cancels booking
+    if (status === "confirmed" || status === "cancelled") {
+      const emoji = status === "confirmed" ? "✅" : "❌";
+      await Notification.create({
+        userId: booking.student._id,
+        title: `Booking ${status === "confirmed" ? "Confirmed" : "Cancelled"} by Admin`,
+        message: `${emoji} Your booking for "${booking.room.name}" on ${booking.date} has been ${status} by the admin.`,
+        type: "booking",
+      });
+    }
+
     res.json(booking);
   } catch (err) {
     res.status(500).json({ message: err.message });

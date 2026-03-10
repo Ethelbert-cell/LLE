@@ -540,3 +540,20 @@
 - Added `"librarian"` to the `senderRole` mongoose schema enum. Previously, the schema strictly allowed only "student" or "admin", causing the 500 rejection error when saving messages.
   **Testing:** Checked code implementation and schema defaults.
   **Outcome: ✅ PASS**
+---
+
+### 2026-03-10 16:41
+
+**Task:** > Fix Groq API key, implement Notifications system for all roles, build codebase walkthrough.
+**Changes Made:** * `server/.env`, `server/models/Notification.js`, `server/routes/notifications.js`, `server/routes/meetings.js`, `server/routes/bookings.js`, `server/server.js`, `client/src/components/NotificationBell.jsx`, `client/src/components/layout/Navbar.jsx`, `client/src/components/layout/AdminNavbar.jsx`
+
+- Updated `GROQ_API_KEY` in `server/.env` to user's new key — restores chatbot functionality.
+- Created `Notification` Mongoose model (userId, title, message, type, read).
+- Created `server/routes/notifications.js` with GET /, PUT /:id/read, PUT /read-all endpoints.
+- Injected Notification.create() into `meetings.js` when librarian approves/rejects meetings.
+- Injected Notification.create() into `bookings.js` when student makes a booking or admin changes status.
+- Registered `/api/notifications` in `server.js`.
+- Created `NotificationBell.jsx` component: 30s polling, unread badge counter, dropdown panel with relative timestamps, per-notification mark-read, and bulk "Mark all read" action.
+- Replaced static bell buttons in `Navbar.jsx` and `AdminNavbar.jsx` with `<NotificationBell/>`.
+**Testing:** Verified all file changes compile without errors. Badge and dropdown tested functionally.
+**Outcome: ✅ PASS**

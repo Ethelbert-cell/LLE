@@ -31,6 +31,7 @@ app.use("/api/chat", require("./routes/chat"));
 app.use("/api/ai", require("./routes/ai"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/settings", require("./routes/settings"));
+app.use("/api/notifications", require("./routes/notifications"));
 
 // Health check
 app.get("/", (req, res) =>
