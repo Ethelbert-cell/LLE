@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import axios from "axios";
 
 // ─── SVG Icons for feature cards ───
 const BookIcon = () => (
@@ -100,15 +102,84 @@ const featureCards = [
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [activeChat, setActiveChat] = useState(null);
+
+  // Check if the student has an ongoing live chat session
+  useEffect(() => {
+    axios
+      .get("/api/chat/status", {
+        headers: { Authorization: `Bearer ${user?.token}` },
+      })
+      .then((res) => {
+        if (res.data.activeSession) setActiveChat(res.data.activeSession);
+      })
+      .catch(() => {}); // silently ignore if endpoint fails
+  }, [user?.token]);
 
   return (
     <div className="page-container">
       <div className="page-header">
-        <h1 className="page-title">Welcome, Student</h1>
+        <h1 className="page-title">
+          Welcome, {user?.name?.split(" ")[0] || "Student"}
+        </h1>
         <p className="page-subtitle">
           Access all library services from your personal dashboard.
         </p>
       </div>
+
+      {/* ── Active Live Chat Banner ── */}
+      {activeChat && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "rgba(34,197,94,0.08)",
+            border: "1px solid rgba(74,222,128,0.25)",
+            padding: "0.9rem 1.25rem",
+            marginBottom: "1.5rem",
+            gap: "1rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                background: "#4ade80",
+                display: "inline-block",
+                boxShadow: "0 0 6px #4ade80",
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{ color: "#4ade80", fontWeight: 600, fontSize: "0.88rem" }}
+            >
+              You have an active live chat
+            </span>
+            {activeChat.librarianId && (
+              <span
+                style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}
+              >
+                — with {activeChat.librarianId?.name || "a librarian"}
+              </span>
+            )}
+          </div>
+          <button
+            className="btn btn-sm"
+            style={{
+              background: "rgba(74,222,128,0.15)",
+              border: "1px solid rgba(74,222,128,0.3)",
+              color: "#4ade80",
+              whiteSpace: "nowrap",
+            }}
+            onClick={() => navigate("/livechat")}
+          >
+            Rejoin Chat →
+          </button>
+        </div>
+      )}
 
       <div className="feature-grid">
         {featureCards.map((card) => (

@@ -557,3 +557,32 @@
 - Replaced static bell buttons in `Navbar.jsx` and `AdminNavbar.jsx` with `<NotificationBell/>`.
 **Testing:** Verified all file changes compile without errors. Badge and dropdown tested functionally.
 **Outcome: ✅ PASS**
+
+---
+
+### 2026-03-23 12:15
+
+**Task:** > Active chats are not shown in the student Dashboard when on a live chat.
+**Changes Made:** * `client/src/pages/Dashboard.jsx`
+
+- Added `useEffect` + `axios` call to `GET /api/chat/status` on Dashboard mount.
+- If an active session is found (`res.data.activeSession`), a green live banner is rendered above the feature cards showing a pulsing green dot, "You have an active live chat", the librarian's name if assigned, and a **"Rejoin Chat →"** button that navigates to `/livechat`.
+- Also personalised the welcome heading to use the student's first name (e.g. "Welcome, Alex") instead of the static "Welcome, Student".
+- Error is silently caught so dashboard still renders normally if the chat API is unreachable.
+**Testing:** Verified logic: when `activeSession` is returned, banner renders; when null, banner is hidden.
+**Outcome: ✅ PASS**
+
+---
+
+### 2026-03-23 12:23
+
+**Task:** > Active Chats stat card on Admin Dashboard shows 000 even during an active live chat.
+**Changes Made:** * `client/src/pages/admin/AdminDashboard.jsx`
+
+- Root cause: `chats` in `setStats()` was hardcoded to `0` with a TODO comment.
+- Added `GET /api/chat/status` to the `Promise.allSettled` fetch block alongside bookings, users, and meetings.
+- The endpoint returns `{ activeSessions: [], queuedSessions: [] }` for admin/librarian roles.
+- `activeChatCount` is now derived as `activeSessions.length + queuedSessions.length`.
+- The "ACTIVE CHATS" stat card now shows the real live count from the database.
+**Testing:** With an active chat between Alex Morgan and James Okafor, the stat card should now show 001.
+**Outcome: ✅ PASS**

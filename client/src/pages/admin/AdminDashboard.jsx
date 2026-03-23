@@ -118,11 +118,13 @@ const AdminDashboard = () => {
 
     const fetchAll = async () => {
       try {
-        const [bookingsRes, usersRes, meetingsRes] = await Promise.allSettled([
-          axios.get("/api/bookings", { headers }),
-          axios.get("/api/users", { headers }),
-          axios.get("/api/meetings", { headers }),
-        ]);
+        const [bookingsRes, usersRes, meetingsRes, chatRes] =
+          await Promise.allSettled([
+            axios.get("/api/bookings", { headers }),
+            axios.get("/api/users", { headers }),
+            axios.get("/api/meetings", { headers }),
+            axios.get("/api/chat/status", { headers }),
+          ]);
 
         const bookings =
           bookingsRes.status === "fulfilled" ? bookingsRes.value.data : [];
@@ -131,6 +133,13 @@ const AdminDashboard = () => {
         const meetings =
           meetingsRes.status === "fulfilled" ? meetingsRes.value.data : [];
 
+        // Count all ongoing chat sessions (active + queued)
+        const chatData =
+          chatRes.status === "fulfilled" ? chatRes.value.data : {};
+        const activeChatCount =
+          (chatData.activeSessions?.length || 0) +
+          (chatData.queuedSessions?.length || 0);
+
         const today = new Date().toDateString();
         const todayAppts = meetings.filter(
           (m) => new Date(m.requestedDate).toDateString() === today,
@@ -138,7 +147,7 @@ const AdminDashboard = () => {
 
         setStats({
           bookings: bookings.length,
-          chats: 0, // live chat count from Socket.IO — placeholder
+          chats: activeChatCount,
           appointments: todayAppts,
           users: users.length,
         });
